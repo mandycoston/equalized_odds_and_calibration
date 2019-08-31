@@ -105,15 +105,15 @@ class Model(namedtuple('Model', 'pred label')):
         sbr = float(self.base_rate())
         obr = float(othr.base_rate())
 
-        sp2p = cvx.Variable(1)
-        sp2n = cvx.Variable(1)
-        sn2p = cvx.Variable(1)
-        sn2n = cvx.Variable(1)
+        sp2p = cvx.Variable(1, nonneg=True)
+        sp2n = cvx.Variable(1, nonneg=True)
+        sn2p = cvx.Variable(1, nonneg=True)
+        sn2n = cvx.Variable(1, nonneg=True)
 
-        op2p = cvx.Variable(1)
-        op2n = cvx.Variable(1)
-        on2p = cvx.Variable(1)
-        on2n = cvx.Variable(1)
+        op2p = cvx.Variable(1, nonneg=True)
+        op2n = cvx.Variable(1, nonneg=True)
+        on2p = cvx.Variable(1, nonneg=True)
+        on2n = cvx.Variable(1, nonneg=True)
 
         sfpr = self.fpr() * sp2p + self.tnr() * sn2p
         sfnr = self.fnr() * sn2n + self.tpr() * sp2n
@@ -136,6 +136,8 @@ class Model(namedtuple('Model', 'pred label')):
         om_tp = np.logical_and(othr.pred.round() == 1, othr.label == 1)
         om_fp = np.logical_and(othr.pred.round() == 1, othr.label == 0)
 
+        
+        # computing the expected average score for rows that are actually positive (= FN + TP)
         spn_given_p = (sn2p * (sflip * sm_fn).mean() + sn2n * (sconst * sm_fn).mean()) / sbr + \
                       (sp2p * (sconst * sm_tp).mean() + sp2n * (sflip * sm_tp).mean()) / sbr
 
@@ -153,13 +155,13 @@ class Model(namedtuple('Model', 'pred label')):
             sn2p == 1 - sn2n,
             op2p == 1 - op2n,
             on2p == 1 - on2n,
-            sp2p <= 1,
+            sp2p <= 1-1e-4,
             sp2p >= 0,
-            sn2p <= 1,
+            sn2p <= 1-1e-4,
             sn2p >= 0,
-            op2p <= 1,
+            op2p <= 1-1e-4,
             op2p >= 0,
-            on2p <= 1,
+            on2p <= 1-1e-4,
             on2p >= 0,
             spp_given_n == opp_given_n,
             spn_given_p == opn_given_p,
@@ -169,7 +171,7 @@ class Model(namedtuple('Model', 'pred label')):
         prob.solve()
 
         res = np.array([sp2p.value, sn2p.value, op2p.value, on2p.value])
-        return res
+        return np.where(res > 1, 1, res)
 
     def __repr__(self):
         return '\n'.join([
